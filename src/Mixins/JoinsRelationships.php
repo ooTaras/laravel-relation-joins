@@ -2,7 +2,7 @@
 
 namespace Kanarskiy\LaravelRelationJoins\Mixins;
 
-use App\packages\LaravelRelationJoins\src\JoinState;
+use Kanarskiy\LaravelRelationJoins\JoinState;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;

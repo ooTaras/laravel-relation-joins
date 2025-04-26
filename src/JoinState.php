@@ -1,6 +1,6 @@
 <?php
 
-namespace App\packages\LaravelRelationJoins\src;
+namespace Kanarskiy\LaravelRelationJoins;
 
 class JoinState
 {
