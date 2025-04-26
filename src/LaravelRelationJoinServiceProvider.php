@@ -1,6 +1,6 @@
 <?php
 
-namespace Reedware\LaravelRelationJoins;
+namespace Kanarskiy\LaravelRelationJoins;
 
 use Illuminate\Database\Eloquent\Builder as Eloquent;
 use Illuminate\Database\Eloquent\Relations\Relation;

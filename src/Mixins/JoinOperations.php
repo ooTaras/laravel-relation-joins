@@ -1,6 +1,6 @@
 <?php
 
-namespace Reedware\LaravelRelationJoins\Mixins;
+namespace Kanarskiy\LaravelRelationJoins\Mixins;
 
 use Closure;
 use Illuminate\Database\Query\Builder;

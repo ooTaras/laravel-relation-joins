@@ -1,12 +1,12 @@
 <?php
 
-namespace Reedware\LaravelRelationJoins\Mixins;
+namespace Kanarskiy\LaravelRelationJoins\Mixins;
 
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Reedware\LaravelRelationJoins\RelationJoinQuery;
+use Kanarskiy\LaravelRelationJoins\RelationJoinQuery;
 
 /**
  * @template TRelatedModel of Model

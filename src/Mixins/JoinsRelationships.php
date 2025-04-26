@@ -1,7 +1,8 @@
 <?php
 
-namespace Reedware\LaravelRelationJoins\Mixins;
+namespace Kanarskiy\LaravelRelationJoins\Mixins;
 
+use App\packages\LaravelRelationJoins\src\JoinState;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -10,36 +11,39 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Arr;
+use Kanarskiy\LaravelRelationJoins\EloquentJoinClause;
+use Kanarskiy\LaravelRelationJoins\MorphTypes;
 use LogicException;
-use Reedware\LaravelRelationJoins\EloquentJoinClause;
-use Reedware\LaravelRelationJoins\MorphTypes;
 use RuntimeException;
 
-/** @template TModel of Model */
+/**
+ * @template TModel of Model
+ */
 class JoinsRelationships
 {
     /**
      * Defines the mixin for {@see $query->joinRelation()}.
+     * @return Closure
      */
     public function joinRelation(): Closure
     {
         /**
          * Add a relationship join condition to the query.
          *
-         * @param  Relation|string|array<Relation|string>  $relation
-         * @param  Closure|array<string,Closure>|null  $callback
-         * @param  MorphTypes|array<class-string<Model>>|class-string<Model>|true  $morphTypes
+         * @param Relation|string|array<Relation|string> $relation
+         * @param Closure|array<string,Closure>|null $callback
+         * @param MorphTypes|array<class-string<Model>>|class-string<Model>|true $morphTypes
          */
         return function (
-            Relation|string|array $relation,
-            Closure|array|null $callback = null,
-            string $type = 'inner',
-            bool $through = false,
-            ?Builder $relatedQuery = null,
+            Relation|string|array        $relation,
+            Closure|array|null           $callback = null,
+            string                       $type = 'inner',
+            bool                         $through = false,
+            ?Builder                     $relatedQuery = null,
             MorphTypes|array|string|bool $morphTypes = true
         ): Builder {
             /** @var Builder<TModel> $this */
-            if (! $morphTypes instanceof MorphTypes) {
+            if (!$morphTypes instanceof MorphTypes) {
                 $morphTypes = new MorphTypes($morphTypes); // @phpstan-ignore-line
             }
 
@@ -56,13 +60,14 @@ class JoinsRelationships
 
                 $relation = ($relatedQuery ?: $this)->getRelationWithoutConstraints($relationName);
 
-                if (! $relation instanceof Relation) {
+                if (!$relation instanceof Relation) {
                     throw new LogicException(sprintf(
-                        '%s::%s must return a relationship instance.',
-                        get_class($this->getModel()),
-                        $relationName)
+                            '%s::%s must return a relationship instance.',
+                            get_class($this->getModel()),
+                            $relationName)
                     );
                 }
+
             } elseif (is_array($relation)) {
                 [$relation, $alias] = $relation;
             }
@@ -100,8 +105,7 @@ class JoinsRelationships
                 $joinQuery, $relation, $type
             );
 
-            return ! is_null($relatedQuery) ? $joinQuery : $this;
-
+            return !is_null($relatedQuery) ? $joinQuery : $this;
         };
     }
 
@@ -113,14 +117,14 @@ class JoinsRelationships
         /**
          * Add nested relationship join conditions to the query.
          *
-         * @param  Closure|array<string,Closure>|null  $callbacks
+         * @param Closure|array<string,Closure>|null $callbacks
          */
         return function (
-            string $relations,
+            string             $relations,
             Closure|array|null $callbacks,
-            string $type,
-            bool $through,
-            MorphTypes $morphTypes
+            string             $type,
+            bool               $through,
+            MorphTypes         $morphTypes
         ): Builder {
             /** @var Builder<TModel> $this */
             $relations = explode('.', $relations);
@@ -129,15 +133,15 @@ class JoinsRelationships
 
             $callbacks = is_array($callbacks)
                 ? (
-                    Arr::isAssoc($callbacks)
-                        ? $callbacks
-                        : array_combine($relations, $callbacks)
+                Arr::isAssoc($callbacks)
+                    ? $callbacks
+                    : array_combine($relations, $callbacks)
                 )
                 : [end($relations) => $callbacks];
 
             while (count($relations) > 0) {
-                $relation = array_shift($relations);
-                $callback = $callbacks[$relation] ?? null;
+                $relation   = array_shift($relations);
+                $callback   = $callbacks[$relation] ?? null;
                 $useThrough = count($relations) > 0 && $through;
 
                 $relatedQuery = $this->joinRelation(
@@ -235,13 +239,21 @@ class JoinsRelationships
          * Add the "join relation" condition where clause to the query.
          */
         return function (Builder $joinQuery, Relation $relation, string $type): Builder {
+            if (!isset($this->joinState)) {
+                $this->joinState = new JoinState();
+            }
+
             /** @var Builder<TModel> $this */
             $joinQuery->mergeConstraintsFrom($relation->getQuery());
 
             $baseJoinQuery = $joinQuery->toBase();
 
-            if (! empty($baseJoinQuery->joins)) {
+            if (!empty($baseJoinQuery->joins)) {
                 $this->mergeJoins($baseJoinQuery->joins, $baseJoinQuery->bindings['join']);
+            }
+
+            if ($this->joinState->hasJoin($baseJoinQuery->from)){
+                return $this;
             }
 
             $this->join($baseJoinQuery->from, function ($join) use ($baseJoinQuery) {
@@ -255,6 +267,8 @@ class JoinsRelationships
                 $join->mergeWheres($baseJoinQuery->wheres, $baseJoinQuery->bindings['where']);
 
             }, null, null, $type);
+
+            $this->joinState->addJoin($baseJoinQuery->from);
 
             return $this;
         };
@@ -324,7 +338,7 @@ class JoinsRelationships
         /**
          * Add a relationship left join condition to the query.
          *
-         * @param  Closure|array<string,Closure>|null  $callback
+         * @param Closure|array<string,Closure>|null $callback
          */
         return function (string $relation, Closure|array|null $callback = null, bool $through = false): Builder {
             /** @var Builder<TModel> $this */
@@ -340,7 +354,7 @@ class JoinsRelationships
         /**
          * Add a relationship right join condition to the query.
          *
-         * @param  Closure|array<string,Closure>|null  $callback
+         * @param Closure|array<string,Closure>|null $callback
          */
         return function (string $relation, Closure|array|null $callback = null, bool $through = false): Builder {
             /** @var Builder<TModel> $this */
@@ -356,7 +370,7 @@ class JoinsRelationships
         /**
          * Add a relationship cross join condition to the query.
          *
-         * @param  Closure|array<string,Closure>|null  $callback
+         * @param Closure|array<string,Closure>|null $callback
          */
         return function (string $relation, Closure|array|null $callback = null, bool $through = false): Builder {
             /** @var Builder<TModel> $this */
@@ -372,7 +386,7 @@ class JoinsRelationships
         /**
          * Add a relationship join condition through a related model to the query.
          *
-         * @param  Closure|array<string,Closure>|null  $callback
+         * @param Closure|array<string,Closure>|null $callback
          */
         return function (string $relation, Closure|array|null $callback = null, string $type = 'inner'): Builder {
             /** @var Builder<TModel> $this */
@@ -388,7 +402,7 @@ class JoinsRelationships
         /**
          * Add a relationship left join condition through a related model to the query.
          *
-         * @param  Closure|array<string,Closure>|null  $callback
+         * @param Closure|array<string,Closure>|null $callback
          */
         return function (string $relation, Closure|array|null $callback = null): Builder {
             /** @var Builder<TModel> $this */
@@ -404,7 +418,7 @@ class JoinsRelationships
         /**
          * Add a relationship right join condition through a related model to the query.
          *
-         * @param  Closure|array<string,Closure>|null  $callback
+         * @param Closure|array<string,Closure>|null $callback
          */
         return function (string $relation, Closure|array|null $callback = null): Builder {
             /** @var Builder<TModel> $this */
@@ -420,7 +434,7 @@ class JoinsRelationships
         /**
          * Add a relationship cross join condition through a related model to the query.
          *
-         * @param  Closure|array<string,Closure>|null  $callback
+         * @param Closure|array<string,Closure>|null $callback
          */
         return function (string $relation, Closure|array|null $callback = null): Builder {
             /** @var Builder<TModel> $this */
@@ -436,17 +450,17 @@ class JoinsRelationships
         /**
          * Add a morph to relationship join condition to the query.
          *
-         * @param  string|array<Relation|string>  $relation
-         * @param  array<class-string<Model>>|class-string<Model>|true  $morphTypes
-         * @param  Closure|array<Closure>|null  $callback
+         * @param string|array<Relation|string> $relation
+         * @param array<class-string<Model>>|class-string<Model>|true $morphTypes
+         * @param Closure|array<Closure>|null $callback
          */
         return function (
-            string|array $relation,
-            array|string|bool $morphTypes = true,
+            string|array       $relation,
+            array|string|bool  $morphTypes = true,
             Closure|array|null $callback = null,
-            string $type = 'inner',
-            bool $through = false,
-            ?Builder $relatedQuery = null
+            string             $type = 'inner',
+            bool               $through = false,
+            ?Builder           $relatedQuery = null
         ): Builder {
             /** @var Builder<TModel> $this */
             return $this->joinRelation($relation, $callback, $type, $through, $relatedQuery, $morphTypes);
@@ -461,15 +475,15 @@ class JoinsRelationships
         /**
          * Add a morph to relationship left join condition to the query.
          *
-         * @param  string|array<Relation|string>  $relation
-         * @param  array<string>|string  $morphTypes
-         * @param  Closure|array<Closure>|null  $callback
+         * @param string|array<Relation|string> $relation
+         * @param array<string>|string $morphTypes
+         * @param Closure|array<Closure>|null $callback
          */
         return function (
-            string|array $relation,
-            array|string $morphTypes = ['*'],
+            string|array       $relation,
+            array|string       $morphTypes = ['*'],
             Closure|array|null $callback = null,
-            bool $through = false
+            bool               $through = false
         ): Builder {
             /** @var Builder<TModel> $this */
             return $this->joinRelation($relation, $callback, 'left', $through, null, $morphTypes);
@@ -484,15 +498,15 @@ class JoinsRelationships
         /**
          * Add a morph to relationship right join condition to the query.
          *
-         * @param  string|array<Relation|string>  $relation
-         * @param  array<string>|string  $morphTypes
-         * @param  Closure|array<Closure>|null  $callback
+         * @param string|array<Relation|string> $relation
+         * @param array<string>|string $morphTypes
+         * @param Closure|array<Closure>|null $callback
          */
         return function (
-            string|array $relation,
-            array|string $morphTypes = ['*'],
+            string|array       $relation,
+            array|string       $morphTypes = ['*'],
             Closure|array|null $callback = null,
-            bool $through = false
+            bool               $through = false
         ): Builder {
             /** @var Builder<TModel> $this */
             return $this->joinRelation($relation, $callback, 'right', $through, null, $morphTypes);
@@ -507,15 +521,15 @@ class JoinsRelationships
         /**
          * Add a morph to relationship cross join condition to the query.
          *
-         * @param  string|array<Relation|string>  $relation
-         * @param  array<string>|string  $morphTypes
-         * @param  Closure|array<Closure>|null  $callback
+         * @param string|array<Relation|string> $relation
+         * @param array<string>|string $morphTypes
+         * @param Closure|array<Closure>|null $callback
          */
         return function (
-            string|array $relation,
-            array|string $morphTypes = ['*'],
+            string|array       $relation,
+            array|string       $morphTypes = ['*'],
             Closure|array|null $callback = null,
-            bool $through = false
+            bool               $through = false
         ): Builder {
             /** @var Builder<TModel> $this */
             return $this->joinRelation($relation, $callback, 'cross', $through, null, $morphTypes);
@@ -530,15 +544,15 @@ class JoinsRelationships
         /**
          * Add a morph to relationship join condition through a related model to the query.
          *
-         * @param  string|array<Relation|string>  $relation
-         * @param  array<string>|string  $morphTypes
-         * @param  Closure|array<Closure>|null  $callback
+         * @param string|array<Relation|string> $relation
+         * @param array<string>|string $morphTypes
+         * @param Closure|array<Closure>|null $callback
          */
         return function (
-            string|array $relation,
-            array|string $morphTypes = ['*'],
+            string|array       $relation,
+            array|string       $morphTypes = ['*'],
             Closure|array|null $callback = null,
-            string $type = 'inner'
+            string             $type = 'inner'
         ): Builder {
             /** @var Builder<TModel> $this */
             return $this->joinRelation($relation, $callback, $type, true, null, $morphTypes);
@@ -553,13 +567,13 @@ class JoinsRelationships
         /**
          * Add a morph to relationship left join condition through a related model to the query.
          *
-         * @param  string|array<Relation|string>  $relation
-         * @param  array<string>|string  $morphTypes
-         * @param  Closure|array<Closure>|null  $callback
+         * @param string|array<Relation|string> $relation
+         * @param array<string>|string $morphTypes
+         * @param Closure|array<Closure>|null $callback
          */
         return function (
-            string|array $relation,
-            array|string $morphTypes = ['*'],
+            string|array       $relation,
+            array|string       $morphTypes = ['*'],
             Closure|array|null $callback = null
         ): Builder {
             /** @var Builder<TModel> $this */
@@ -575,13 +589,13 @@ class JoinsRelationships
         /**
          * Add a morph to relationship right join condition through a related model to the query.
          *
-         * @param  string|array<Relation|string>  $relation
-         * @param  array<string>|string  $morphTypes
-         * @param  Closure|array<Closure>|null  $callback
+         * @param string|array<Relation|string> $relation
+         * @param array<string>|string $morphTypes
+         * @param Closure|array<Closure>|null $callback
          */
         return function (
-            string|array $relation,
-            array|string $morphTypes = ['*'],
+            string|array       $relation,
+            array|string       $morphTypes = ['*'],
             Closure|array|null $callback = null
         ): Builder {
             /** @var Builder<TModel> $this */
@@ -597,13 +611,13 @@ class JoinsRelationships
         /**
          * Add a morph to relationship cross join condition through a related model to the query.
          *
-         * @param  string|array<Relation|string>  $relation
-         * @param  array<string>|string  $morphTypes
-         * @param  Closure|array<Closure>|null  $callback
+         * @param string|array<Relation|string> $relation
+         * @param array<string>|string $morphTypes
+         * @param Closure|array<Closure>|null $callback
          */
         return function (
-            string|array $relation,
-            array|string $morphTypes = ['*'],
+            string|array       $relation,
+            array|string       $morphTypes = ['*'],
             Closure|array|null $callback = null
         ): Builder {
             /** @var Builder<TModel> $this */
