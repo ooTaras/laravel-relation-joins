@@ -9,6 +9,17 @@
 
 This package adds the ability to join on a relationship by name.
 
+---
+## 🆕 State Preservation for `join`
+
+The new version introduces **state preservation** for `join` operations.  
+The library now remembers which elements have already been joined, and will **skip** re-joining them on subsequent `join` calls.
+
+### Benefits:
+- Prevents duplicate `join` operations.
+- Enables flexible logic with multiple dynamic `join` calls.
+---
+
 ## Table of Contents
 
 - [Introduction](#introduction)
